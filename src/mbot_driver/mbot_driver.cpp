@@ -20,7 +20,9 @@ void MBotDriver::spin(std::unique_ptr<interfaces::Notification> notif) {
         return (notif != nullptr) && notif->wait(rix::util::Duration(0.0));
     };
 
-    // Read exactly n bytes (blocking). Returns false on EOF/error.
+    // Nonblocking input so tests can simulate partial availability
+    input->set_nonblocking(true);
+
     auto read_exact = [&](uint8_t* dst, size_t n) -> bool {
         size_t got = 0;
         while (got < n) {
@@ -28,7 +30,15 @@ void MBotDriver::spin(std::unique_ptr<interfaces::Notification> notif) {
             if (r == 0) return false;                // EOF
             if (r < 0) {
                 if (errno == EINTR) continue;        // interrupted by signal, retry
-                return false;                        // real error
+                if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                    // Only check notification when we'd otherwise block
+                    if (notif_ready()) return false;
+
+                    // Wait briefly for more bytes
+                    input->wait_for_readable(rix::util::Duration(0.001)); // 1ms
+                    continue;
+                }
+                return false; // real error
             }
             got += static_cast<size_t>(r);
         }
@@ -37,6 +47,7 @@ void MBotDriver::spin(std::unique_ptr<interfaces::Notification> notif) {
 
     while (true) {
         // Check notification between full messages (not in a tight loop)
+        // Allow exiting between messages
         if (notif_ready()) {
             send_stop();
             return;
