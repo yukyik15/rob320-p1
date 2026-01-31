@@ -7,54 +7,48 @@ TeleopKeyboard::TeleopKeyboard(std::unique_ptr<rix::ipc::interfaces::IO> input,
 
 void TeleopKeyboard::spin(std::unique_ptr<rix::ipc::interfaces::Notification> notif) {
     /* TODO */
-    // Nonblocking so we can notice SIGINT promptly while waiting for input.
-    input->set_nonblocking(true);
 
     uint32_t seq = 0;
 
-    auto sig_received = [&]() -> bool {
+    auto notif_ready = [&]() -> bool {
         return (notif != nullptr) && notif->wait(rix::util::Duration(0.0));
     };
 
     auto write_exact = [&](const uint8_t* src, size_t nbytes) -> bool {
         size_t sent = 0;
         while (sent < nbytes) {
-            if (sig_received()) return false;
             ssize_t w = output->write(src + sent, nbytes - sent);
-            if (w <= 0) {
-                // stdout errors are fatal for this program
-                return false;
-            }
+            if (w <= 0) return false;
             sent += static_cast<size_t>(w);
         }
         return true;
     };
 
     while (true) {
-        // Stop immediately on SIGINT -> do not emit any further commands.
-        if (sig_received()) return;
+        // Exit immediately on SIGINT / notification.
+        if (notif_ready()) return;
 
-        // Wait a bit for input so we don't busy-spin.
-        input->wait_for_readable(rix::util::Duration(0.01));  // 10ms
+        // Wait briefly for input; this avoids blocking forever and lets us re-check notif.
+        if (!input->wait_for_readable(rix::util::Duration(0.01))) {
+            continue;
+        }
 
-        // Read a single character
+        // Read exactly one character
         uint8_t ch = 0;
         ssize_t r = input->read(&ch, 1);
 
         if (r == 0) {
-            // EOF on input -> terminate
+            // EOF
             return;
         }
         if (r < 0) {
-            // Nonblocking: no data yet
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                continue;
-            }
-            // Other read error -> terminate
+            // transient read interruption -> retry
+            if (errno == EINTR) continue;
+            // treat other errors as termination in this project
             return;
         }
 
-        // Map key -> twist. Invalid keys => no command.
+        // Map key -> twist
         bool valid = true;
         double vx = 0.0, vy = 0.0, wz = 0.0;
 
@@ -70,29 +64,30 @@ void TeleopKeyboard::spin(std::unique_ptr<rix::ipc::interfaces::Notification> no
         }
 
         if (!valid) {
-            continue;  // ignore invalid keys
+            // Ignore invalid keys (must not output)
+            continue;
         }
 
-        // If SIGINT happened after reading the key, we must not write a command
-        if (sig_received()) return;
+        // If notification happened right after we read the key, do not output.
+        if (notif_ready()) return;
 
         // Build message
-        geometry::Twist2DStamped msg{};
+        rix::msg::geometry::Twist2DStamped msg{};
         msg.header.seq = seq++;
         msg.header.frame_id = "mbot";
-        msg.header.stamp = rix::util::Time::now().to_msg();;
+        msg.header.stamp = rix::util::Time::now().to_msg();
 
         msg.twist.vx = vx;
         msg.twist.vy = vy;
         msg.twist.wz = wz;
 
-        // Serialize
+        // Serialize payload
         const uint32_t n = msg.size();
         std::vector<uint8_t> payload(n);
         size_t off = 0;
         msg.serialize(payload.data(), off);
 
-        // Write size prefix (UInt32) then payload
+        // Write size prefix then payload
         uint8_t size_buf[4];
         size_t off2 = 0;
         ::rix::msg::detail::serialize_number<uint32_t>(size_buf, off2, n);
