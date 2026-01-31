@@ -53,9 +53,6 @@ void TeleopKeyboard::spin(std::unique_ptr<rix::ipc::interfaces::Notification> no
             return;  // real error
         }
 
-        // After a successful read -> one poll per received character (valid or invalid)
-        if (notif_ready()) return;
-
         // Normalize letters so 'w' works like 'W'
         char c = static_cast<char>(ch);
         if (std::isalpha(static_cast<unsigned char>(c))) {
@@ -78,6 +75,8 @@ void TeleopKeyboard::spin(std::unique_ptr<rix::ipc::interfaces::Notification> no
 
         if (!valid) {
             // Ignore invalid keys
+            // poll ONLY on invalid keys
+            if (notif_ready()) return;
             continue;
         }
 
