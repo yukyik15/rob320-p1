@@ -7,7 +7,7 @@ namespace ipc {
 std::array<Pipe, 2> Pipe::create() {
     int fds[2] = {-1, -1};
     if (::pipe(fds) != 0) {
-        // Failed to create; return invalid pipes
+        // can't to create; return invalid pipes
         return {Pipe(), Pipe()};
     }
 

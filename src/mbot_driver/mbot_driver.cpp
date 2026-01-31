@@ -16,7 +16,7 @@ void MBotDriver::spin(std::unique_ptr<interfaces::Notification> notif) {
         mbot->drive(stop);
     };
 
-    // Make stdin non-blocking so we can notice SIGINT promptly.
+    // Make stdin non-blocking so we can notice SIGINT promptly
     input->set_nonblocking(true);
 
     auto sig_received = [&]() -> bool {
@@ -58,7 +58,7 @@ void MBotDriver::spin(std::unique_ptr<interfaces::Notification> notif) {
             return;
         }
 
-        // Wait briefly for data (so we don't busy-spin).
+        // Wait briefly for data (so we don't busy-spin)
         input->wait_for_readable(rix::util::Duration(0.01));
 
         // Read 4-byte size prefix
@@ -89,7 +89,7 @@ void MBotDriver::spin(std::unique_ptr<interfaces::Notification> notif) {
         geometry::Twist2DStamped cmd{};
         off = 0;
         if (!cmd.deserialize(payload.data(), payload.size(), off)) {
-            // Bad/partial message; ignore and keep going
+            // Bad/partial message -> ignore and keep going
             continue;
         }
 

@@ -15,7 +15,7 @@ Signal::Signal(int signum) : signum_(signum - 1) {
 
     const int idx = signum - 1;
 
-    // Only one Signal object may manage a given signum at a time.
+    // Only one Signal object may manage a given signum at a time
     if (notifier[idx].is_init) {
         throw std::invalid_argument("Signal: handler for this signum already exists");
     }
@@ -113,7 +113,7 @@ bool Signal::wait(const rix::util::Duration &d) const {
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
             break;     // drained
         }
-        break;         // other error; stop draining
+        break;         // other error -> stop draining
     }
 
     read_end.set_nonblocking(was_nonblocking);

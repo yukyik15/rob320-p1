@@ -14,7 +14,7 @@ File::File(int fd) : fd_(fd) {}
 
 /**< TODO */
 File::File(std::string pathname, int creation_flags, mode_t mode) {
-    // open() ignores mode unless O_CREAT is set, so it's safe to always pass it.
+    // open() ignores mode unless O_CREAT is set, so it's safe to always pass it
     fd_ = ::open(pathname.c_str(), creation_flags, mode);
 }
 
@@ -31,7 +31,7 @@ File &File::operator=(const File &src) {
         return *this;
     }
 
-    // Close current fd if we own a "real" fd (avoid closing stdin/stdout/stderr).
+    // Close current fd if we own a "real" fd (avoid closing stdin/stdout/stderr)
     if (fd_ > 0) {
         ::close(fd_);
         fd_ = -1;
@@ -59,7 +59,7 @@ File &File::operator=(File &&src) {
 
 /**< TODO */
 File::~File() {
-    // Avoid closing stdin/stdout/stderr by convention (fd 0,1,2).
+    // Avoid closing stdin/stdout/stderr (fd 0,1,2)
     if (fd_ > 0) {
         ::close(fd_);
         fd_ = -1;
@@ -134,8 +134,8 @@ bool File::wait_for_writable(const util::Duration &duration) const {
     if (ns < 0) {
         timeout_ms = 0;
     } else {
-        // poll() takes milliseconds; rounding up avoids timing out "too early"
-        // for small non-zero durations.
+        // poll() takes milliseconds 
+        // -> so rounding up avoids timing out "too early" for small non-zero durations
         int64_t ms = duration.to_milliseconds(util::Time::RoundType::CEIL);
         if (ms > static_cast<int64_t>(std::numeric_limits<int>::max())) {
             timeout_ms = std::numeric_limits<int>::max();

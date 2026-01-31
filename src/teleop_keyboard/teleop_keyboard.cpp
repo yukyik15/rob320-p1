@@ -31,7 +31,7 @@ void TeleopKeyboard::spin(std::unique_ptr<rix::ipc::interfaces::Notification> no
     };
 
     while (true) {
-        // Stop immediately on SIGINT; do not emit any further commands.
+        // Stop immediately on SIGINT -> do not emit any further commands.
         if (sig_received()) return;
 
         // Wait a bit for input so we don't busy-spin.
@@ -73,7 +73,7 @@ void TeleopKeyboard::spin(std::unique_ptr<rix::ipc::interfaces::Notification> no
             continue;  // ignore invalid keys
         }
 
-        // If SIGINT happened after reading the key, we must not write a command.
+        // If SIGINT happened after reading the key, we must not write a command
         if (sig_received()) return;
 
         // Build message

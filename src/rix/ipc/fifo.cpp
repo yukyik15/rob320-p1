@@ -7,10 +7,10 @@ namespace ipc {
 Fifo::Fifo(const std::string &pathname, Mode mode, bool nonblocking) 
     : File(), mode_(mode), pathname_(pathname) {
     // Create fifo special file if it doesn't exist
-    // Use a common default permission (rw for everyone); umask may further restrict.
+    // Use a common default permission (rw for everyone) cuz umask may further restrict
     if (::mkfifo(pathname.c_str(), 0666) != 0) {
         if (errno != EEXIST) {
-            // Creation failed for a real reason; leave fd_ invalid.
+            // Creation doesn't work for a real reason -> leave fd_ invalid
             fd_ = -1;
             return;
         }
@@ -43,7 +43,7 @@ Fifo &Fifo::operator=(const Fifo &other) {
         return *this;
     }
 
-    // Close current fd if valid (avoid stdin/stdout/stderr like your other code)
+    // Close current fd if valid (avoid stdin/stdout/stderr)
     if (fd_ > 0) {
         ::close(fd_);
         fd_ = -1;
