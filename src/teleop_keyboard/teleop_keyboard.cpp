@@ -29,6 +29,9 @@ void TeleopKeyboard::spin(std::unique_ptr<rix::ipc::interfaces::Notification> no
     };
 
     while (true) {
+        // Check nottification every iteration
+        if (notif_ready()) return;
+
         // Wait a tiny amount for input; if no input, then check notification.
         if (!input->wait_for_readable(rix::util::Duration(0.001))) {  // 1ms
             if (notif_ready()) return;
@@ -45,7 +48,11 @@ void TeleopKeyboard::spin(std::unique_ptr<rix::ipc::interfaces::Notification> no
         if (r < 0) {
             // IMPORTANT: do NOT treat EAGAIN/EWOULDBLOCK as fatal in tests
             if (errno == EINTR) continue;
-            if (errno == EAGAIN || errno == EWOULDBLOCK) continue;
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                // Check notification before retrying
+                if (notif_ready()) return;
+                continue;
+            }
             return;  // real error
         }
 
