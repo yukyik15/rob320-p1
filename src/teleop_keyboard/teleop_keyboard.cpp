@@ -18,22 +18,23 @@ void TeleopKeyboard::spin(std::unique_ptr<rix::ipc::interfaces::Notification> no
         size_t sent = 0;
         while (sent < nbytes) {
             ssize_t w = output->write(src + sent, nbytes - sent);
-            if (w <= 0) return false;
+            if (w < 0) {
+                if (errno == EINTR) continue;
+                return false;
+            }
+            if (w == 0) return false;
             sent += static_cast<size_t>(w);
         }
         return true;
     };
 
     while (true) {
-        // Exit immediately on SIGINT / notification.
-        if (notif_ready()) return;
-
-        // Wait briefly for input; this avoids blocking forever and lets us re-check notif.
-        if (!input->wait_for_readable(rix::util::Duration(0.01))) {
+        // Wait a tiny amount for input; if no input, then check notification.
+        if (!input->wait_for_readable(rix::util::Duration(0.001))) {  // 1ms
+            if (notif_ready()) return;
             continue;
         }
 
-        // Read exactly one character
         uint8_t ch = 0;
         ssize_t r = input->read(&ch, 1);
 
@@ -42,17 +43,22 @@ void TeleopKeyboard::spin(std::unique_ptr<rix::ipc::interfaces::Notification> no
             return;
         }
         if (r < 0) {
-            // transient read interruption -> retry
+            // IMPORTANT: do NOT treat EAGAIN/EWOULDBLOCK as fatal in tests
             if (errno == EINTR) continue;
-            // treat other errors as termination in this project
-            return;
+            if (errno == EAGAIN || errno == EWOULDBLOCK) continue;
+            return;  // real error
         }
 
-        // Map key -> twist
+        // Normalize letters so 'w' works like 'W'
+        char c = static_cast<char>(ch);
+        if (std::isalpha(static_cast<unsigned char>(c))) {
+            c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+        }
+
         bool valid = true;
         double vx = 0.0, vy = 0.0, wz = 0.0;
 
-        switch (static_cast<char>(ch)) {
+        switch (c) {
             case 'W': vx = +linear_speed; break;
             case 'A': vy = +linear_speed; break;
             case 'S': vx = -linear_speed; break;
@@ -64,14 +70,13 @@ void TeleopKeyboard::spin(std::unique_ptr<rix::ipc::interfaces::Notification> no
         }
 
         if (!valid) {
-            // Ignore invalid keys (must not output)
+            // Ignore invalid keys
             continue;
         }
 
-        // If notification happened right after we read the key, do not output.
+        // Must not output after notification
         if (notif_ready()) return;
 
-        // Build message
         rix::msg::geometry::Twist2DStamped msg{};
         msg.header.seq = seq++;
         msg.header.frame_id = "mbot";
@@ -81,13 +86,11 @@ void TeleopKeyboard::spin(std::unique_ptr<rix::ipc::interfaces::Notification> no
         msg.twist.vy = vy;
         msg.twist.wz = wz;
 
-        // Serialize payload
         const uint32_t n = msg.size();
         std::vector<uint8_t> payload(n);
         size_t off = 0;
         msg.serialize(payload.data(), off);
 
-        // Write size prefix then payload
         uint8_t size_buf[4];
         size_t off2 = 0;
         ::rix::msg::detail::serialize_number<uint32_t>(size_buf, off2, n);
