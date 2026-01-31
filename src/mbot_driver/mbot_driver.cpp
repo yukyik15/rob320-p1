@@ -9,74 +9,54 @@ MBotDriver::MBotDriver(std::unique_ptr<interfaces::IO> input, std::unique_ptr<MB
 void MBotDriver::spin(std::unique_ptr<interfaces::Notification> notif) {
     /* TODO */
     auto send_stop = [&]() {
-        geometry::Twist2DStamped stop{};
+        rix::msg::geometry::Twist2DStamped stop{};
         stop.twist.vx = 0.0;
         stop.twist.vy = 0.0;
         stop.twist.wz = 0.0;
         mbot->drive(stop);
     };
 
-    // Make stdin non-blocking so we can notice SIGINT promptly
-    input->set_nonblocking(true);
-
-    auto sig_received = [&]() -> bool {
+    auto notif_ready = [&]() -> bool {
         return (notif != nullptr) && notif->wait(rix::util::Duration(0.0));
     };
 
-    auto read_exact = [&](uint8_t *dst, size_t nbytes) -> bool {
+    // Read exactly n bytes (blocking). Returns false on EOF/error.
+    auto read_exact = [&](uint8_t* dst, size_t n) -> bool {
         size_t got = 0;
-        while (got < nbytes) {
-            if (sig_received()) {
-                return false;  // caller will stop+return
-            }
-
-            ssize_t r = input->read(dst + got, nbytes - got);
-
-            if (r == 0) {
-                // EOF
-                return false;
-            }
+        while (got < n) {
+            ssize_t r = input->read(dst + got, n - got);
+            if (r == 0) return false;                // EOF
             if (r < 0) {
-                // Non-blocking: no data yet
-                if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                    // Wait a bit for stdin to become readable, then retry
-                    input->wait_for_readable(rix::util::Duration(0.01));  // 10ms
-                    continue;
-                }
-                // Other error
-                return false;
+                if (errno == EINTR) continue;        // interrupted by signal, retry
+                return false;                        // real error
             }
-
             got += static_cast<size_t>(r);
         }
         return true;
     };
 
     while (true) {
-        if (sig_received()) {
+        // Check notification between full messages (not in a tight loop)
+        if (notif_ready()) {
             send_stop();
             return;
         }
-
-        // Wait briefly for data (so we don't busy-spin)
-        input->wait_for_readable(rix::util::Duration(0.01));
 
         // Read 4-byte size prefix
         uint8_t size_buf[4];
         if (!read_exact(size_buf, 4)) {
-            send_stop();
+            send_stop(); // EOF or error
             return;
         }
 
-        // Deserialize uint32 length (RIX serialization for numbers is raw bytes)
         uint32_t msg_size = 0;
         size_t off = 0;
-        if (!detail::deserialize_number<uint32_t>(msg_size, size_buf, 4, off)) {
+        if (!::rix::msg::detail::deserialize_number<uint32_t>(msg_size, size_buf, 4, off)) {
             send_stop();
             return;
         }
 
-        // Read the serialized message payload
+        // Read payload
         std::vector<uint8_t> payload(msg_size);
         if (msg_size > 0) {
             if (!read_exact(payload.data(), msg_size)) {
@@ -85,11 +65,11 @@ void MBotDriver::spin(std::unique_ptr<interfaces::Notification> notif) {
             }
         }
 
-        // Deserialize and drive
-        geometry::Twist2DStamped cmd{};
+        // Deserialize + drive
+        rix::msg::geometry::Twist2DStamped cmd{};
         off = 0;
         if (!cmd.deserialize(payload.data(), payload.size(), off)) {
-            // Bad/partial message -> ignore and keep going
+            // Bad message: ignore and continue
             continue;
         }
 
