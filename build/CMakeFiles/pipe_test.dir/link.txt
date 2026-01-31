@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/pipe_test.dir/tests/pipe.cpp.o -o pipe_test  libproject1.a /usr/lib/aarch64-linux-gnu/libgtest_main.a /usr/lib/aarch64-linux-gnu/libgtest.a 

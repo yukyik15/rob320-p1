@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/mbot_driver.dir/src/mbot_driver/mbot_driver.cpp.o CMakeFiles/mbot_driver.dir/src/mbot_driver/main.cpp.o -o mbot_driver  libmbot.a libproject1.a -lm 

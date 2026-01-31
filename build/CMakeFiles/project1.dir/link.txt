@@ -1,0 +1,2 @@
+/usr/bin/ar qc libproject1.a CMakeFiles/project1.dir/src/rix/ipc/fifo.cpp.o CMakeFiles/project1.dir/src/rix/ipc/file.cpp.o CMakeFiles/project1.dir/src/rix/ipc/pipe.cpp.o CMakeFiles/project1.dir/src/rix/ipc/signal.cpp.o CMakeFiles/project1.dir/src/rix/util/time.cpp.o CMakeFiles/project1.dir/src/rix/util/argument_parser.cpp.o
+/usr/bin/ranlib libproject1.a
