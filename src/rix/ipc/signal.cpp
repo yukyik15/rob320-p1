@@ -50,7 +50,7 @@ Signal &Signal::operator=(Signal &&other) {
         if (notifier[signum_].is_init) {
             notifier[signum_].is_init = false;
             notifier[signum_].pipe = {};
-            ::signal(signum_, SIG_DFL);
+            ::signal(signum_+1, SIG_DFL);
         }
     }
     signum_ = -1;
@@ -74,7 +74,11 @@ bool Signal::kill(pid_t pid) const {
     return (::kill(pid, signum_ + 1) == 0);
 }
 
-int Signal::signum() const { return signum_ + 1; }
+// also changing this??
+int Signal::signum() const { 
+    if (signum_ < 0 || signum_ >= 32) return -1;
+    return signum_ + 1;
+}
 
 /**< TODO */
 bool Signal::wait(const rix::util::Duration &d) const {
