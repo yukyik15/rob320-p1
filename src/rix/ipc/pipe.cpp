@@ -5,16 +5,47 @@ namespace ipc {
 
 /**< TODO */
 std::array<Pipe, 2> Pipe::create() {
-    return {};
+    int fds[2] = {-1, -1};
+    if (::pipe(fds) != 0) {
+        // Failed to create; return invalid pipes
+        return {Pipe(), Pipe()};
+    }
+
+    // fds[0] = read end, fds[1] = write end
+    return {Pipe(fds[0], true), Pipe(fds[1], false)};
 }
 
 Pipe::Pipe() : File(), read_end_(false) {}
 
 /**< TODO */
-Pipe::Pipe(const Pipe &other) {}
+Pipe::Pipe(const Pipe &other) : File(), read_end_(other.read_end_) {
+    if (other.fd_ >= 0) {
+        fd_ = ::dup(other.fd_);
+    } else {
+        fd_ = -1;
+    }
+}
 
 /**< TODO */
 Pipe &Pipe::operator=(const Pipe &other) {
+    if (this == &other) {
+        return *this;
+    }
+
+    // Close current fd if valid (avoid closing stdin/stdout/stderr)
+    if (fd_ > 0) {
+        ::close(fd_);
+        fd_ = -1;
+    }
+
+    read_end_ = other.read_end_;
+
+    if (other.fd_ >= 0) {
+        fd_ = ::dup(other.fd_);
+    } else {
+        fd_ = -1;
+    }
+
     return *this;
 }
 

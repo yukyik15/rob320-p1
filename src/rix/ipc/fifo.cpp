@@ -4,15 +4,60 @@ namespace rix {
 namespace ipc {
 
 /**< TODO */
-Fifo::Fifo(const std::string &pathname, Mode mode, bool nonblocking) {}
+Fifo::Fifo(const std::string &pathname, Mode mode, bool nonblocking) 
+    : File(), mode_(mode), pathname_(pathname) {
+    // Create fifo special file if it doesn't exist
+    // Use a common default permission (rw for everyone); umask may further restrict.
+    if (::mkfifo(pathname.c_str(), 0666) != 0) {
+        if (errno != EEXIST) {
+            // Creation failed for a real reason; leave fd_ invalid.
+            fd_ = -1;
+            return;
+        }
+    }
+
+    // Spec says: "opened for both reading and writing"
+    int flags = O_RDWR;
+    if (nonblocking) {
+        flags |= O_NONBLOCK;
+    }
+
+    fd_ = ::open(pathname.c_str(), flags);
+}
 
 Fifo::Fifo() {}
 
 /**< TODO */
-Fifo::Fifo(const Fifo &other) {}
+Fifo::Fifo(const Fifo &other) 
+    : File(), mode_(other.mode_), pathname_(other.pathname_) {
+    if (other.fd_ >= 0) {
+        fd_ = ::dup(other.fd_);
+    } else {
+        fd_ = -1;
+    }
+}
 
 /**< TODO */
 Fifo &Fifo::operator=(const Fifo &other) {
+    if (this == &other) {
+        return *this;
+    }
+
+    // Close current fd if valid (avoid stdin/stdout/stderr like your other code)
+    if (fd_ > 0) {
+        ::close(fd_);
+        fd_ = -1;
+    }
+
+    pathname_ = other.pathname_;
+    mode_ = other.mode_;
+
+    if (other.fd_ >= 0) {
+        fd_ = ::dup(other.fd_);
+    } else {
+        fd_ = -1;
+    }
+
     return *this;
 }
 
